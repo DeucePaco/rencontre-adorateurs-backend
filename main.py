@@ -64,21 +64,21 @@ async def inscrire_participant(donnees: Inscription):
     # 2. Envoi d'email via le générateur sécurisé de Google
     if "re_" in resend.api_key:
         try:
-            qr_google_url = f"https://chart.googleapis.com/chart?cht=qr&chs=150x150&chl=TICKET_ID:{donnees.ticket_id}"
+            qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=TICKET_ID:{donnees.ticket_id}"
 
             html_content = f"""
             <div style="font-family: sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #eaeaea; border-radius: 10px;">
                 <h2 style="color: #4c1d95; text-align: center;">RENCONTRE DES ADORATEURS</h2>
                 <p>Bonjour <strong>{donnees.nom}</strong>,</p>
-                <p>Votre inscription au programme avec <strong>Flora Akoumia</strong> a bien été confirmée !</p>
+                <p>Votre inscription au programme  <strong>Rencontre des adorateurs</strong> a bien été confirmée !</p>
                 
                 <div style="background-color: #4c1d95; color: white; padding: 20px; border-radius: 8px; text-align: center; margin: 20px 0;">
                     <p style="margin: 0; font-size: 12px; text-transform: uppercase; letter-spacing: 2px;">Votre Ticket d'Accès</p>
-                    <h3 style="margin: 5px 0 15px 0;">FLORA AKOUMIA</h3>
+                    <h3 style="margin: 5px 0 15px 0;">{donnees.nom}</h3>
                     <p style="font-size: 14px;"><strong>Date :</strong> 14 août 2026<br><strong>Lieu :</strong> Jardin Botanique</p>
                     
                     <div style="background: white; padding: 15px; display: inline-block; border-radius: 12px; margin-top: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-                        <img src="{qr_google_url}" alt="Code QR" style="width: 150px; height: 150px; display: block; margin: 0 auto;" />
+                        <img src="{qr_url}" alt="Code QR" style="width: 150px; height: 150px; display: block; margin: 0 auto;" />
                         <p style="color: #333; margin: 8px 0 0 0; font-weight: bold; font-size: 12px; letter-spacing: 1px;">#{donnees.ticket_id}</p>
                     </div>
                 </div>
