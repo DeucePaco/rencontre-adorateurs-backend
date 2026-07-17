@@ -125,3 +125,37 @@ async def obtenir_participants():
     finally:
         if connection:
             connection.close()
+    class ValidationTicket(BaseModel):
+    ticket_id: str
+
+@app.post("/api/admin/verifier-ticket")
+async def verifier_ticket(donnees: ValidationTicket):
+    connection = None
+    try:
+        connection = get_db_connection()
+        cursor = connection.cursor()
+        
+        # 1. On cherche le participant avec ce ticket
+        cursor.execute("SELECT nom, email FROM participants WHERE ticket_id = %s;", (donnees.ticket_id,))
+        resultat = cursor.fetchone()
+        
+        if resultat is None:
+            raise HTTPException(status_code=404, detail="Ticket invalide ou introuvable.")
+            
+        nom_participant = resultat[0]
+        cursor.close()
+        
+        return {
+            "statut": "valide",
+            "message": f"Ticket valide pour {nom_participant} !",
+            "nom": nom_participant
+        }
+        
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        print(f"Erreur vérification : {e}")
+        raise HTTPException(status_code=500, detail="Erreur lors de la vérification du ticket.")
+    finally:
+        if connection:
+            connection.close()
