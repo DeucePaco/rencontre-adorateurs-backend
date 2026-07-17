@@ -1,6 +1,7 @@
+import os
 import psycopg2
 import resend
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr
 
@@ -15,17 +16,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Configuration de Resend
-resend.api_key = "re_FsydLTzh_DkcsJgif8CdScDXV5qsH1vsh"  # ⚠️ REMETS TA VRAIE CLÉ ICI !
+# Configuration de Resend via Variables d'environnement (plus sécurisé en production)
+resend.api_key = os.getenv("RESEND_API_KEY", "re_FsydLTzh_DkcsJgif8CdScDXV5qsH1vsh")
 
-# Connexion PostgreSQL
-DB_CONFIG = {
-    "dbname": "adorateurs_db",
-    "user": "postgres",
-    "password": "admin",  # ⚠️ REMETS TON VRAI MOT DE PASSE ICI !
-    "host": "localhost",
-    "port": "5432"
-}
+# Connexion PostgreSQL dynamique (Prend l'URL en ligne, ou se rabat sur ton localhost en local)
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:admin@localhost:5432/adorateurs_db")
 
 class Inscription(BaseModel):
     nom: str
@@ -33,12 +28,20 @@ class Inscription(BaseModel):
     telephone: str
     ticket_id: str
 
+# Fonction utilitaire pour obtenir une connexion à la base de données
+def get_db_connection():
+    try:
+        return psycopg2.connect(DATABASE_URL)
+    except Exception as e:
+        print(f"Erreur de connexion à la base de données : {e}")
+        raise HTTPException(status_code=500, detail="Impossible de se connecter à la base de données.")
+
 @app.post("/api/envoyer-ticket")
 async def inscrire_participant(donnees: Inscription):
     connection = None
     try:
         # 1. Connexion et insertion dans PostgreSQL
-        connection = psycopg2.connect(**DB_CONFIG)
+        connection = get_db_connection()
         cursor = connection.cursor()
         insert_query = """
         INSERT INTO participants (nom, email, telephone, ticket_id) 
@@ -61,7 +64,6 @@ async def inscrire_participant(donnees: Inscription):
     # 2. Envoi d'email via le générateur sécurisé de Google
     if "re_" in resend.api_key:
         try:
-            # On utilise l'API de graphiques sécurisée de Google pour générer le QR Code en ligne
             qr_google_url = f"https://chart.googleapis.com/chart?cht=qr&chs=150x150&chl=TICKET_ID:{donnees.ticket_id}"
 
             html_content = f"""
@@ -76,7 +78,6 @@ async def inscrire_participant(donnees: Inscription):
                     <p style="font-size: 14px;"><strong>Date :</strong> 14 août 2026<br><strong>Lieu :</strong> Jardin Botanique</p>
                     
                     <div style="background: white; padding: 15px; display: inline-block; border-radius: 12px; margin-top: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-                        <!-- L'image pointe vers l'adresse sécurisée de Google -->
                         <img src="{qr_google_url}" alt="Code QR" style="width: 150px; height: 150px; display: block; margin: 0 auto;" />
                         <p style="color: #333; margin: 8px 0 0 0; font-weight: bold; font-size: 12px; letter-spacing: 1px;">#{donnees.ticket_id}</p>
                     </div>
@@ -94,3 +95,33 @@ async def inscrire_participant(donnees: Inscription):
             print(f"Erreur email : {e}")
 
     return {"statut": "success"}
+
+# === NOUVELLE ROUTE POUR TON INTERFACE ADMIN ===
+@app.get("/api/admin/participants")
+async def obtenir_participants():
+    connection = None
+    try:
+        connection = get_db_connection()
+        cursor = connection.cursor()
+        cursor.execute("SELECT id, nom, email, telephone, ticket_id, cree_at FROM participants ORDER BY cree_at DESC;")
+        lignes = cursor.fetchall()
+        cursor.close()
+        
+        # Structurer les données proprement pour ton tableau d'administration
+        participants = []
+        for l in lignes:
+            participants.append({
+                "id": l[0],
+                "nom": l[1],
+                "email": l[2],
+                "telephone": l[3],
+                "ticket_id": l[4],
+                "cree_at": str(l[5])
+            })
+        return participants
+    except Exception as e:
+        print(f"Erreur lors de la récupération : {e}")
+        raise HTTPException(status_code=500, detail="Erreur lors de la récupération des participants.")
+    finally:
+        if connection:
+            connection.close()
